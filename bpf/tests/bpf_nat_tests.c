@@ -5,6 +5,11 @@
 #include <bpf/api.h>
 #include "common.h"
 #include "pktgen.h"
+#include <lib/dbg.h>
+#include <lib/eps.h>
+#include <lib/nat.h>
+#include <lib/time.h>
+#include <bpf/csum.h>
 
 #define ENABLE_SCTP
 #define ENABLE_IPV4
@@ -30,6 +35,28 @@
 #define IP_WORLD    4
 
 static char pkt[100];
+
+static __always_inline bool csum_is_valid(void *data, __u32 len)
+{
+	__wsum wsum = csum_diff(NULL, 0, data, len, 0);
+
+	return csum_fold(wsum) == 0;
+}
+
+static __always_inline void
+assert_icmp_csum_valid(struct __ctx_buff *ctx, int l4_off, int pkt_size)
+{
+	char icmp_buf[128];
+	int icmp_len = pkt_size - l4_off;
+
+	if (icmp_len <= 0)
+		test_fatal("invalid icmp msg length for csum check");
+	if (icmp_len > (int)sizeof(icmp_buf))
+		test_fatal("icmp msg too large for csum check buffer");
+	if (ctx_load_bytes(ctx, l4_off, icmp_buf, icmp_len) < 0)
+		test_fatal("can't load icmp msg for csum check");
+	assert(csum_is_valid(icmp_buf, icmp_len));
+}
 
 #define SECLABEL    1
 
@@ -257,6 +284,8 @@ int test_nat4_icmp_error_tcp(__maybe_unused struct __ctx_buff *ctx)
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
 
+	assert_icmp_csum_valid(ctx, l4_off, pkt_size);
+
 	/* Validating inner headers */
 	int in_l3_off;
 	int in_l4_off;
@@ -377,6 +406,8 @@ int test_nat4_icmp_error_tcp_rfc1191(__maybe_unused struct __ctx_buff *ctx)
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
 
+	assert_icmp_csum_valid(ctx, l4_off, pkt_size);
+
 	/* Validating inner headers */
 	int in_l3_off;
 	int in_l4_off;
@@ -495,6 +526,8 @@ int test_nat4_icmp_error_udp(__maybe_unused struct __ctx_buff *ctx)
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
 
+	assert_icmp_csum_valid(ctx, l4_off, pkt_size);
+
 	/* Validating inner headers */
 	int in_l3_off;
 	int in_l4_off;
@@ -608,6 +641,8 @@ int test_nat4_icmp_error_icmp(__maybe_unused struct __ctx_buff *ctx)
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
 
+	assert_icmp_csum_valid(ctx, l4_off, pkt_size);
+
 	/* Validating inner headers */
 	int in_l3_off;
 	int in_l4_off;
@@ -626,6 +661,13 @@ int test_nat4_icmp_error_icmp(__maybe_unused struct __ctx_buff *ctx)
 	if (ctx_load_bytes(ctx, in_l4_off, &in_l4hdr, sizeof(in_l4hdr)) < 0)
 		test_fatal("can't load embedded l4 headers");
 	assert(in_l4hdr.un.echo.id == bpf_htons(123));
+
+	/* Only ICMP echo carries a self-contained checksum here; TCP/UDP
+	 * checksums cover a pseudo-header we do not reconstruct in this
+	 * truncated embedded packet, and SCTP uses CRC32c instead of the
+	 * standard ones-complement checksum.
+	 */
+	assert(csum_is_valid(&in_l4hdr, sizeof(in_l4hdr)));
 
 	test_finish();
 }
@@ -781,6 +823,8 @@ int test_nat4_icmp_error_tcp_egress(__maybe_unused struct __ctx_buff *ctx)
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
 
+	assert_icmp_csum_valid(ctx, l4_off, pkt_size);
+
 	/* Validating inner headers */
 	int in_l3_off;
 	int in_l4_off;
@@ -906,6 +950,8 @@ int test_nat4_icmp_error_tcp_egress_rfc1191(__maybe_unused struct __ctx_buff *ct
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
 
+	assert_icmp_csum_valid(ctx, l4_off, pkt_size);
+
 	/* Validating inner headers */
 	int in_l3_off;
 	int in_l4_off;
@@ -1029,6 +1075,8 @@ int test_nat4_icmp_error_udp_egress(__maybe_unused struct __ctx_buff *ctx)
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
 
+	assert_icmp_csum_valid(ctx, l4_off, pkt_size);
+
 	/* Validating inner headers */
 	int in_l3_off;
 	int in_l4_off;
@@ -1147,6 +1195,8 @@ int test_nat4_icmp_error_icmp_egress(__maybe_unused struct __ctx_buff *ctx)
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
 
+	assert_icmp_csum_valid(ctx, l4_off, pkt_size);
+
 	/* Validating inner headers */
 	int in_l3_off;
 	int in_l4_off;
@@ -1165,6 +1215,13 @@ int test_nat4_icmp_error_icmp_egress(__maybe_unused struct __ctx_buff *ctx)
 	if (ctx_load_bytes(ctx, in_l4_off, &in_l4hdr, sizeof(in_l4hdr)) < 0)
 		test_fatal("can't load embedded l4 headers");
 	assert(in_l4hdr.un.echo.id == bpf_htons(32767));
+
+	/* Only ICMP echo carries a self-contained checksum here; TCP/UDP
+	 * checksums cover a pseudo-header we do not reconstruct in this
+	 * truncated embedded packet, and SCTP uses CRC32c instead of the
+	 * standard ones-complement checksum.
+	 */
+	assert(csum_is_valid(&in_l4hdr, sizeof(in_l4hdr)));
 
 	test_finish();
 }
@@ -1253,6 +1310,8 @@ int test_nat4_icmp_error_sctp_egress(__maybe_unused struct __ctx_buff *ctx)
 		test_fatal("can't load icmp headers");
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
+
+	assert_icmp_csum_valid(ctx, l4_off, pkt_size);
 
 	/* Validating inner headers */
 	int in_l3_off;
