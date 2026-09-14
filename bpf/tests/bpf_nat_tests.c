@@ -5,10 +5,6 @@
 #include <bpf/api.h>
 #include "common.h"
 #include "pktgen.h"
-#include <lib/dbg.h>
-#include <lib/eps.h>
-#include <lib/nat.h>
-#include <lib/time.h>
 #include <bpf/csum.h>
 
 #define ENABLE_SCTP
@@ -22,10 +18,6 @@
 
 #define DEBUG
 
-#include <lib/dbg.h>
-#include <lib/eps.h>
-#include <lib/nat.h>
-#include <lib/time.h>
 
 #include "bpf_nat_tuples.h"
 
@@ -43,20 +35,19 @@ static __always_inline bool csum_is_valid(void *data, __u32 len)
 	return csum_fold(wsum) == 0;
 }
 
-static __always_inline void
-assert_icmp_csum_valid(struct __ctx_buff *ctx, int l4_off, int pkt_size)
-{
-	char icmp_buf[128];
-	int icmp_len = pkt_size - l4_off;
-
-	if (icmp_len <= 0)
-		test_fatal("invalid icmp msg length for csum check");
-	if (icmp_len > (int)sizeof(icmp_buf))
-		test_fatal("icmp msg too large for csum check buffer");
-	if (ctx_load_bytes(ctx, l4_off, icmp_buf, icmp_len) < 0)
-		test_fatal("can't load icmp msg for csum check");
-	assert(csum_is_valid(icmp_buf, icmp_len));
-}
+#define assert_icmp_csum_valid(ctx, l4_off, pkt_size) \
+	do { \
+		char icmp_buf[128]; \
+		int icmp_len = (pkt_size) - (l4_off); \
+		\
+		if (icmp_len <= 0) \
+			test_fatal("invalid icmp msg length for csum check"); \
+		if (icmp_len > (int)sizeof(icmp_buf)) \
+			test_fatal("icmp msg too large for csum check buffer"); \
+		if (ctx_load_bytes((ctx), (l4_off), icmp_buf, icmp_len) < 0) \
+			test_fatal("can't load icmp msg for csum check"); \
+		assert(csum_is_valid(icmp_buf, icmp_len)); \
+	} while (0)
 
 #define SECLABEL    1
 
@@ -178,6 +169,7 @@ __always_inline int mk_icmp4_error_pkt(void *dst, __u8 error_hdr, bool egress, b
 				},
 			},
 		};
+		inner_l4.checksum = csum_fold(csum_diff(NULL, 0, &inner_l4, sizeof(inner_l4), 0));
 		memcpy(dst, &inner_l4, sizeof(struct icmphdr));
 		dst += sizeof(struct icmphdr);
 	}
@@ -193,6 +185,13 @@ __always_inline int mk_icmp4_error_pkt(void *dst, __u8 error_hdr, bool egress, b
 		       &extra_words, 1);
 	}
 
+	{
+		__u32 icmp_len = (__u32)(dst - icmp_ptr);
+
+		((struct icmphdr *)icmp_ptr)->checksum = 0;
+		((struct icmphdr *)icmp_ptr)->checksum =
+			csum_fold(csum_diff(NULL, 0, icmp_ptr, icmp_len, 0));
+	}
 	return (int)(dst - orig);
 }
 
