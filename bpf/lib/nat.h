@@ -899,7 +899,10 @@ snat_v4_nat_handle_icmp_error(struct __ctx_buff *ctx, __u64 off,
 	}
 
 	/* Calculate the diff for the outer ICMP checksum. */
-	*outer_csum_diff = snat_v4_calc_icmp_error_csum_diff(tuple.saddr, (*state)->to_saddr,
+	if (tuple.nexthdr == IPPROTO_ICMP || tuple.nexthdr == IPPROTO_SCTP)
+		*outer_csum_diff = 0;
+	else
+		*outer_csum_diff = snat_v4_calc_icmp_error_csum_diff(tuple.saddr, (*state)->to_saddr,
 							     tuple.sport, (*state)->to_sport,
 							     icmp_has_inner_l4_csum &&
 							     is_inner_l4_csum_enabled);
@@ -1145,7 +1148,10 @@ snat_v4_rev_nat_handle_icmp_error(struct __ctx_buff *ctx,
 	}
 
 	/* Calculate the diff for the outer ICMP checksum. */
-	*outer_csum_diff = snat_v4_calc_icmp_error_csum_diff(tuple.daddr, (*state)->to_daddr,
+	if (tuple.nexthdr == IPPROTO_ICMP || tuple.nexthdr == IPPROTO_SCTP)
+		*outer_csum_diff = 0;
+	else
+		*outer_csum_diff = snat_v4_calc_icmp_error_csum_diff(tuple.daddr, (*state)->to_daddr,
 							     tuple.dport, (*state)->to_dport,
 							     icmp_has_inner_l4_csum &&
 							     is_inner_l4_csum_enabled);
