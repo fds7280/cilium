@@ -678,14 +678,14 @@ int test_nat4_icmp_error_sctp(__maybe_unused struct __ctx_buff *ctx)
 		.nexthdr = IPPROTO_SCTP,
 		.saddr = bpf_htonl(IP_ENDPOINT),
 		.daddr = bpf_htonl(IP_WORLD),
-		.sport = bpf_htons(9999),
+		.sport = bpf_htons(NODEPORT_PORT_MIN_NAT),
 		.dport = bpf_htons(80),
 		.flags = 0,
 	};
 	struct ipv4_nat_target target = {
 		.addr = bpf_htonl(IP_HOST),
-		.min_port = bpf_ntohs(tuple.sport),
-		.max_port = bpf_ntohs(tuple.sport),
+		.min_port = NODEPORT_PORT_MIN_NAT,
+		.max_port = NODEPORT_PORT_MIN_NAT,
 	};
 	struct ipv4_nat_entry state;
 	struct trace_ctx trace;
