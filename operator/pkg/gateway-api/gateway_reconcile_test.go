@@ -5,6 +5,7 @@ package gateway_api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -29,6 +30,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/cilium/cilium/operator/pkg/gateway-api/helpers"
+	"github.com/cilium/cilium/operator/pkg/gateway-api/helpers/testhelpers"
 	"github.com/cilium/cilium/operator/pkg/gateway-api/indexers"
 	"github.com/cilium/cilium/operator/pkg/gateway-api/loading"
 	"github.com/cilium/cilium/operator/pkg/model/translation"
@@ -410,7 +412,7 @@ func Test_Conformance(t *testing.T) {
 				}
 				optionalKinds = append(optionalKinds, k)
 			}
-			scheme := helpers.TestScheme(optionalKinds)
+			scheme := testhelpers.TestScheme(optionalKinds, helpers.RegisterGatewayAPITypesToScheme)
 			clientBuilder := fake.NewClientBuilder().
 				WithScheme(scheme).
 				WithObjects(append(base, input...)...).
@@ -472,7 +474,7 @@ func Test_Conformance(t *testing.T) {
 					IncludeServiceImports: helpers.HasServiceImportSupport(c.Scheme()),
 					IncludeListenerSets:   helpers.HasListenerSetSupport(c.Scheme()),
 				}),
-				gatewayAddressStatusManager: NewGatewayAddressStatusManager(c, logger, tt.nodeLabelSelector),
+				gatewayStatusManager: NewGatewayStatusManager(c, logger, tt.nodeLabelSelector),
 				listenerStatusManager: NewListenerStatusManager(c, logger, ListenerStatusManagerConfig{
 					TCPUDPRouteSupport:      !tt.hostNetwork,
 					TCPUDPUnsupportedReason: hostNetworkTCPUDPRouteUnsupportedReason,
@@ -543,7 +545,7 @@ func Test_Conformance(t *testing.T) {
 					actualCEC := &ciliumv2.CiliumEnvoyConfig{}
 					err = c.Get(t.Context(), client.ObjectKey{
 						Namespace: gwDetail.FullName.Namespace,
-						Name:      shortener.ShortenK8sResourceName(gatewayApiTranslation.CiliumGatewayPrefix + gwDetail.FullName.Name),
+						Name:      shortener.ShortenDNSLabelK8sName(gatewayApiTranslation.CiliumGatewayPrefix + gwDetail.FullName.Name),
 					}, actualCEC)
 					require.NoError(t, err, "Could not get CiliumEnvoyConfig and wasn't expecting a reconciliation error")
 					expectedCEC := &ciliumv2.CiliumEnvoyConfig{}
@@ -793,8 +795,8 @@ func Test_gatewayReconciler_Reconcile_cleansUpResourcesOnHandoff(t *testing.T) {
 				},
 			}
 
-			serviceName := shortener.ShortenK8sResourceName(gatewayApiTranslation.CiliumGatewayPrefix + gw.Name)
-			shortGatewayName := shortener.ShortenK8sResourceName(gw.Name)
+			serviceName := shortener.ShortenDNSLabelK8sName(gatewayApiTranslation.CiliumGatewayPrefix + gw.Name)
+			shortGatewayName := shortener.ShortenDNSLabelK8sName(gw.Name)
 			svc := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      serviceName,
@@ -816,7 +818,7 @@ func Test_gatewayReconciler_Reconcile_cleansUpResourcesOnHandoff(t *testing.T) {
 			}
 			cec := &ciliumv2.CiliumEnvoyConfig{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      shortener.ShortenK8sResourceName(gatewayApiTranslation.CiliumGatewayPrefix + gw.Name),
+					Name:      shortener.ShortenDNSLabelK8sName(gatewayApiTranslation.CiliumGatewayPrefix + gw.Name),
 					Namespace: gw.Namespace,
 					Labels: map[string]string{
 						"gateway.networking.k8s.io/gateway-name": shortGatewayName,
@@ -835,7 +837,7 @@ func Test_gatewayReconciler_Reconcile_cleansUpResourcesOnHandoff(t *testing.T) {
 
 			objects := append([]client.Object{gw, svc, cec}, tc.objects...)
 			c := fake.NewClientBuilder().
-				WithScheme(helpers.TestScheme(helpers.AllOptionalKinds)).
+				WithScheme(testhelpers.TestScheme(helpers.AllOptionalKinds, helpers.RegisterGatewayAPITypesToScheme)).
 				WithObjects(objects...).
 				Build()
 
@@ -848,7 +850,7 @@ func Test_gatewayReconciler_Reconcile_cleansUpResourcesOnHandoff(t *testing.T) {
 					IncludeServiceImports: helpers.HasServiceImportSupport(c.Scheme()),
 					IncludeListenerSets:   helpers.HasListenerSetSupport(c.Scheme()),
 				}),
-				gatewayAddressStatusManager: NewGatewayAddressStatusManager(c, hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug))),
+				gatewayStatusManager: NewGatewayStatusManager(c, hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug))),
 				listenerStatusManager: NewListenerStatusManager(c, hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug)), ListenerStatusManagerConfig{
 					TCPUDPRouteSupport:      true,
 					TCPUDPUnsupportedReason: hostNetworkTCPUDPRouteUnsupportedReason,
@@ -873,6 +875,45 @@ func Test_gatewayReconciler_Reconcile_cleansUpResourcesOnHandoff(t *testing.T) {
 	}
 }
 
+func Test_gatewayReconciler_Reconcile_failsOnGatewayClassGetError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("client unavailable")
+	gw := &gatewayv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "gateway",
+			Namespace: "default",
+		},
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: "cilium",
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(testhelpers.TestScheme(helpers.AllOptionalKinds, helpers.RegisterGatewayAPITypesToScheme)).
+		WithObjects(gw).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, ok := obj.(*gatewayv1.GatewayClass); ok {
+					return expectedErr
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+		}).
+		Build()
+
+	r := &gatewayReconciler{
+		client:         c,
+		logger:         hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug)),
+		controllerName: defaultControllerName,
+	}
+
+	result, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gw)})
+	require.ErrorIs(t, err, expectedErr)
+	require.ErrorContains(t, err, `failed to get GatewayClass "cilium"`)
+	require.Equal(t, ctrl.Result{}, result)
+}
+
 // Test_gatewayReconciler_ensureEnvoyConfig_deletesStaleCEC verifies that a
 // CiliumEnvoyConfig left over from a previous HTTP/TLS state is cleaned up when
 // the Gateway no longer needs Envoy (e.g. it switches to pure L4 TCP/UDP
@@ -890,7 +931,7 @@ func Test_gatewayReconciler_ensureEnvoyConfig_deletesStaleCEC(t *testing.T) {
 
 	cecKey := types.NamespacedName{
 		Namespace: gw.Namespace,
-		Name:      shortener.ShortenK8sResourceName(gatewayApiTranslation.CiliumGatewayPrefix + gw.Name),
+		Name:      shortener.ShortenDNSLabelK8sName(gatewayApiTranslation.CiliumGatewayPrefix + gw.Name),
 	}
 
 	ownedCEC := func() *ciliumv2.CiliumEnvoyConfig {
@@ -913,7 +954,7 @@ func Test_gatewayReconciler_ensureEnvoyConfig_deletesStaleCEC(t *testing.T) {
 
 	t.Run("deletes owned stale CEC when desired is nil", func(t *testing.T) {
 		c := fake.NewClientBuilder().
-			WithScheme(helpers.TestScheme(helpers.AllOptionalKinds)).
+			WithScheme(testhelpers.TestScheme(helpers.AllOptionalKinds, helpers.RegisterGatewayAPITypesToScheme)).
 			WithObjects(gw, ownedCEC()).
 			Build()
 		r := &gatewayReconciler{
@@ -932,7 +973,7 @@ func Test_gatewayReconciler_ensureEnvoyConfig_deletesStaleCEC(t *testing.T) {
 		foreign.OwnerReferences[0].UID = types.UID("other-uid")
 		foreign.OwnerReferences[0].Name = "other-gateway"
 		c := fake.NewClientBuilder().
-			WithScheme(helpers.TestScheme(helpers.AllOptionalKinds)).
+			WithScheme(testhelpers.TestScheme(helpers.AllOptionalKinds, helpers.RegisterGatewayAPITypesToScheme)).
 			WithObjects(gw, foreign).
 			Build()
 		r := &gatewayReconciler{
@@ -947,7 +988,7 @@ func Test_gatewayReconciler_ensureEnvoyConfig_deletesStaleCEC(t *testing.T) {
 
 	t.Run("no error when no CEC exists", func(t *testing.T) {
 		c := fake.NewClientBuilder().
-			WithScheme(helpers.TestScheme(helpers.AllOptionalKinds)).
+			WithScheme(testhelpers.TestScheme(helpers.AllOptionalKinds, helpers.RegisterGatewayAPITypesToScheme)).
 			WithObjects(gw).
 			Build()
 		r := &gatewayReconciler{
@@ -1093,7 +1134,10 @@ func Test_gatewayReconciler_setListenerStatus(t *testing.T) {
 			r := &gatewayReconciler{
 				client: func() client.WithWatch {
 					return fake.NewClientBuilder().
-						WithScheme(helpers.TestScheme(helpers.AllOptionalKinds)).
+						WithScheme(testhelpers.TestScheme(
+							helpers.AllOptionalKinds,
+							helpers.RegisterGatewayAPITypesToScheme,
+						)).
 						Build()
 				}(),
 			}
@@ -1154,7 +1198,7 @@ func Test_gatewayReconciler_setAddressStatus_updatesAcceptedListenerProgrammedCo
 			Name:      "gateway-service",
 			Namespace: gw.Namespace,
 			Labels: map[string]string{
-				owningGatewayLabel: shortener.ShortenK8sResourceName(gw.Name),
+				owningGatewayLabel: shortener.ShortenDNSLabelK8sName(gw.Name),
 			},
 		},
 		Spec: corev1.ServiceSpec{
@@ -1170,11 +1214,11 @@ func Test_gatewayReconciler_setAddressStatus_updatesAcceptedListenerProgrammedCo
 	}
 
 	c := fake.NewClientBuilder().
-		WithScheme(helpers.TestScheme(helpers.AllOptionalKinds)).
+		WithScheme(testhelpers.TestScheme(helpers.AllOptionalKinds, helpers.RegisterGatewayAPITypesToScheme)).
 		WithObjects(svc).
 		Build()
 
-	require.NoError(t, NewGatewayAddressStatusManager(c, hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug))).SetAddressStatus(t.Context(), gw))
+	require.NoError(t, NewGatewayStatusManager(c, hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug))).SetAddressStatus(t.Context(), gw))
 
 	require.Len(t, gw.Status.Addresses, 1)
 	require.Equal(t, "192.0.2.10", gw.Status.Addresses[0].Value)
@@ -1289,18 +1333,18 @@ func testReconciler(t *testing.T, obj ...client.Object) (*gatewayReconciler, cli
 	logger := hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug))
 
 	fakeClient := fake.NewClientBuilder().
-		WithScheme(helpers.TestScheme(helpers.AllOptionalKinds)).
+		WithScheme(testhelpers.TestScheme(helpers.AllOptionalKinds, helpers.RegisterGatewayAPITypesToScheme)).
 		WithObjects(obj...).
 		WithStatusSubresource(&gatewayv1.HTTPRoute{}, &gatewayv1.GRPCRoute{}).
 		Build()
 
 	reconciler := &gatewayReconciler{
-		client:                      fakeClient,
-		logger:                      logger,
-		controllerName:              defaultControllerName,
-		tcpUDPRouteSupport:          true,
-		tcpUDPUnsupportedReason:     hostNetworkTCPUDPRouteUnsupportedReason,
-		gatewayAddressStatusManager: NewGatewayAddressStatusManager(fakeClient, logger),
+		client:                  fakeClient,
+		logger:                  logger,
+		controllerName:          defaultControllerName,
+		tcpUDPRouteSupport:      true,
+		tcpUDPUnsupportedReason: hostNetworkTCPUDPRouteUnsupportedReason,
+		gatewayStatusManager:    NewGatewayStatusManager(fakeClient, logger),
 		listenerStatusManager: NewListenerStatusManager(fakeClient, logger, ListenerStatusManagerConfig{
 			TCPUDPRouteSupport:      true,
 			TCPUDPUnsupportedReason: hostNetworkTCPUDPRouteUnsupportedReason,
@@ -1491,7 +1535,7 @@ func TestGatewayReconciler_statuses(t *testing.T) {
 	})
 }
 
-func Test_gatewayAddressStatusManager_SetStaticAddressStatus(t *testing.T) {
+func Test_gatewayStatusManager_SetStaticAddressStatus(t *testing.T) {
 	t.Parallel()
 
 	gateway := func(addr string) *gatewayv1.Gateway {
@@ -1517,7 +1561,7 @@ func Test_gatewayAddressStatusManager_SetStaticAddressStatus(t *testing.T) {
 				Name:      "cilium-gateway-static-address-gateway",
 				Namespace: "default",
 				Labels: map[string]string{
-					owningGatewayLabel: shortener.ShortenK8sResourceName("static-address-gateway"),
+					owningGatewayLabel: shortener.ShortenDNSLabelK8sName("static-address-gateway"),
 				},
 			},
 			Status: corev1.ServiceStatus{
@@ -1588,10 +1632,10 @@ func Test_gatewayAddressStatusManager_SetStaticAddressStatus(t *testing.T) {
 			gw := gateway(tc.specAddr)
 			setGatewayProgrammed(gw, metav1.ConditionTrue, "Gateway Programmed", gatewayv1.GatewayReasonProgrammed)
 			c := fake.NewClientBuilder().
-				WithScheme(helpers.TestScheme(helpers.AllOptionalKinds)).
+				WithScheme(testhelpers.TestScheme(helpers.AllOptionalKinds, helpers.RegisterGatewayAPITypesToScheme)).
 				WithObjects(gw, service(tc.ingress...)).
 				Build()
-			err := NewGatewayAddressStatusManager(c, hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug))).SetStaticAddressStatus(t.Context(), gw)
+			err := NewGatewayStatusManager(c, hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug))).SetStaticAddressStatus(t.Context(), gw)
 			require.NoError(t, err)
 			programmed := meta.FindStatusCondition(gw.Status.Conditions, string(gatewayv1.GatewayConditionProgrammed))
 			require.NotNil(t, programmed)

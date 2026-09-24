@@ -25,7 +25,7 @@ system must meet these requirements:
 When running Cilium as a native process on your host (i.e. **not** running the
 ``cilium/cilium`` container image) these additional requirements must be met:
 
-- `clang+LLVM`_ >= 18.1
+- `clang+LLVM`_ >= 21.1
 
 .. _`clang+LLVM`: https://llvm.org
 
@@ -39,7 +39,7 @@ Requirement              Minimum Version                 In cilium container
 ======================== =============================== ===================
 `Linux kernel`_          >= 5.10 or >= 4.18 on RHEL 8.10 no
 Key-Value store (etcd)   >= 3.1.0                        no
-clang+LLVM               >= 18.1                         yes
+clang+LLVM               >= 21.1                         yes
 ======================== =============================== ===================
 
 Architecture Support
@@ -163,7 +163,6 @@ linked, either choice is valid.
         CONFIG_NET_SCH_INGRESS=y
         CONFIG_DEBUG_INFO_BTF=y
         CONFIG_CRYPTO_SHA1=y
-        CONFIG_CRYPTO_USER_API_HASH=y
         CONFIG_CGROUPS=y
         CONFIG_CGROUP_BPF=y
         CONFIG_PERF_EVENTS=y
@@ -267,7 +266,6 @@ corresponds to requirements for GCM-128-AES.
         CONFIG_INET{,6}_IPCOMP=m
         CONFIG_INET{,6}_XFRM_TUNNEL=m
         CONFIG_INET{,6}_TUNNEL=m
-        CONFIG_INET_XFRM_MODE_TUNNEL=m
         CONFIG_CRYPTO_AEAD=m
         CONFIG_CRYPTO_AEAD2=m
         CONFIG_CRYPTO_GCM=m
@@ -346,7 +344,7 @@ clang+LLVM
 
 LLVM is the compiler suite that Cilium uses to generate eBPF bytecode programs
 to be loaded into the Linux kernel. The minimum supported version of LLVM
-available to ``cilium-agent`` should be >=18.1. The version of clang installed
+available to ``cilium-agent`` should be >=21.1. The version of clang installed
 must be compiled with the eBPF backend enabled.
 
 See https://releases.llvm.org/ for information on how to download and install

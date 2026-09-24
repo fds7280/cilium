@@ -1281,8 +1281,8 @@ type DaemonConfig struct {
 
 	// MonitorAggregationFlags determines which TCP flags that the monitor
 	// aggregation ensures reports are generated for when monitor-aggregation
-	// is enabled. Network byte-order.
-	MonitorAggregationFlags uint16
+	// is enabled.
+	MonitorAggregationFlags uint8
 
 	// BPFEventsDefaultRateLimit specifies limit of messages per second that can be written to
 	// BPF events map. This limit is defined for all types of events except dbg.
@@ -1952,6 +1952,19 @@ func (c *DaemonConfig) AlwaysAllowLocalhost() bool {
 		return true
 	case AllowLocalhostAuto, AllowLocalhostPolicy:
 		return false
+	default:
+		return false
+	}
+}
+
+// ServiceNoBackendResponseEnabled returns true if an ICMP reply should be sent back to the client in case it sent a
+// packet targeting a service with no available backends; false otherwise.
+func (c *DaemonConfig) ServiceNoBackendResponseEnabled() bool {
+	switch v := c.ServiceNoBackendResponse; v {
+	case ServiceNoBackendResponseDrop:
+		return false
+	case ServiceNoBackendResponseReject:
+		return true
 	default:
 		return false
 	}
@@ -2698,7 +2711,7 @@ func (c *DaemonConfig) Populate(logger *slog.Logger, vp *viper.Viper) {
 	c.IPv6PodSubnets = subnets
 
 	monitorAggregationFlags := vp.GetStringSlice(MonitorAggregationFlags)
-	var ctMonitorReportFlags uint16
+	var ctMonitorReportFlags uint8
 	for i := range monitorAggregationFlags {
 		value := strings.ToLower(monitorAggregationFlags[i])
 		flag, exists := TCPFlags[value]

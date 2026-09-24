@@ -571,7 +571,9 @@
       ],
       "allowedVersions": "<1.27",
       "matchBaseBranches": [
-        "v1.20"
+        "v1.20",
+        "v1.19",
+        "v1.18",
       ]
     },
     {
@@ -580,29 +582,7 @@
       ],
       "allowedVersions": "<2.14",
       "matchBaseBranches": [
-        "v1.20"
-      ]
-    },
-    // Toolchain ceilings for v1.19 and v1.18, which target Go 1.25.
-    {
-      "matchPackageNames": [
-        "docker.io/library/golang",
-        "go"
-      ],
-      "allowedVersions": "<1.26",
-      "matchBaseBranches": [
-        "v1.19",
-        "v1.18",
-      ]
-    },
-    {
-      // v1.18 already sits past this, on a v2.13.1 that only works because the
-      // branch has no .custom-gcl.yaml plugin binary to build.
-      "matchPackageNames": [
-        "golangci/golangci-lint"
-      ],
-      "allowedVersions": "<2.13",
-      "matchBaseBranches": [
+        "v1.20",
         "v1.19",
         "v1.18",
       ]
@@ -624,6 +604,17 @@
       "allowedVersions": "<3.23",
       "matchBaseBranches": [
         "v1.18"
+      ]
+    },
+    {
+      // LLVM major bumps require careful scrutiny (datapath verifier, etc.),
+      // so they are done manually in main and never backported.
+      "enabled": false,
+      "matchPackageNames": [
+        "quay.io/cilium/cilium-llvm"
+      ],
+      "matchUpdateTypes": [
+        "major"
       ]
     },
     {
@@ -679,7 +670,8 @@
     {
       // Group golangci-lint updates to overrule grouping of version updates in the GHA files.
       // Without this, golangci-lint updates are not in sync for GHA files and other usages.
-      "groupName": "all-dependencies",
+      // Same group as the Go toolchain, which golangci-lint is compiled with.
+      "groupName": "base-images",
       "matchDepNames": [
         "golangci/golangci-lint",
         "golangci/golangci-lint-action"
@@ -1238,8 +1230,9 @@
       "packageNameTemplate": "ubuntu"
     },
     {
-      "fileMatch": [
-        "^\\.custom-gcl\\.yaml$"
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.custom-gcl\\.yaml$/"
       ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+version:\\s+'?(?<currentValue>[^'\"\\s]+)'?"

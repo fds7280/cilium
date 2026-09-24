@@ -64,7 +64,7 @@ func msStageCmd(params CmdParams) script.Cmd {
 				case "o", "output":
 					return filterPrefix([]string{"table", "json"}, cur)
 				case "e", "endpoint":
-					return autocompleteEndpointsImpl(params, cur)
+					return autocompleteEndpointsImpl(params.EPL, cur)
 				case "f", "filename":
 					return autocompleteFilenameImpl(state, cur)
 				}
@@ -223,7 +223,7 @@ func newStageCmd(params CmdParams, state *script.State) (*stageCmd, error) {
 
 	// add this endpoint to the subject selector cache
 	wg := sync.WaitGroup{}
-	s.pr.GetSubjectSelectorCache().UpdateIdentities(identity.IdentityMap{s.epID.ID: s.epID.LabelArray}, nil, &wg)
+	s.pr.GetSubjectSelectorCache().UpdateIdentities(identity.IdentityMap{s.epID.ID: s.epID.Labels}, nil, &wg)
 	wg.Wait()
 
 	return s, nil
@@ -388,8 +388,9 @@ func (s *stageCmd) ensureCIDRIdentities(e policytypes.PolicyEntries) {
 	// this CIDR
 prefixLoop:
 	for _, prefix := range prefixes {
-		lbls := labels.GetCIDRLabelArray(prefix)
-		wantLabel := lbls[0]
+		lbla := labels.GetCIDRLabelArray(prefix)
+		wantLabel := lbla[0]
+		lbls := lbla.Labels()
 		for _, existingLabels := range s.ids {
 			for _, existingLbl := range existingLabels {
 				if existingLbl.Equals(&wantLabel) {
@@ -512,8 +513,8 @@ func (o *dummyPolicyOwner) IsHost() bool {
 	return o.ep.IsHost()
 }
 
-func (o *dummyPolicyOwner) PreviousMapState() *policy.MapState {
-	return o.ep.PreviousMapState()
+func (o *dummyPolicyOwner) PreviousMapStateSizes() policy.MapStateSizes {
+	return o.ep.PreviousMapStateSizes()
 }
 
 func (o *dummyPolicyOwner) RegenerateIfAlive(regenMetadata *regeneration.ExternalRegenerationMetadata) <-chan bool {

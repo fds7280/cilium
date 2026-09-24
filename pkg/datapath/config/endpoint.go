@@ -43,6 +43,7 @@ func Endpoint(ep endpoint.Config, lnc *Config) any {
 	cfg.EnableExtendedIPProtocols = option.Config.EnableExtendedIPProtocols
 	cfg.EnableNetkit = lnc.DatapathIsNetkit
 
+	cfg.EnableVTEP = option.Config.EnableVTEP
 	if option.Config.EnableVTEP {
 		cfg.VTEPMask = byteorder.NetIPAddrToHost32(option.Config.VtepCidrMask)
 	}
@@ -69,6 +70,8 @@ func Endpoint(ep endpoint.Config, lnc *Config) any {
 
 	cfg.EnableIPv4Fragments = option.Config.EnableIPv4FragmentsTracking
 	cfg.EnableIPv6Fragments = option.Config.EnableIPv6FragmentsTracking
+
+	cfg.EnableServiceNoBackendResponse = option.Config.ServiceNoBackendResponseEnabled()
 
 	cfg.HybridRoutingEnabled = option.Config.RoutingMode == option.RoutingModeHybrid
 

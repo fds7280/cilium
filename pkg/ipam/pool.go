@@ -14,6 +14,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"go4.org/netipx"
 	"golang.org/x/sys/unix"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	iputil "github.com/cilium/cilium/pkg/ip"
@@ -22,6 +23,8 @@ import (
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/option"
 )
+
+var errAllCIDRsExhausted = errors.New("all CIDR ranges are exhausted")
 
 // A cidrPool manages the allocation of IPs in multiple CIDRs.
 // It maintains one IP allocator for each CIDR in the pool.
@@ -102,7 +105,7 @@ func (p *cidrPool) allocateNext() (netip.Addr, error) {
 		return ipAllocator.AllocateNext()
 	}
 
-	return netip.Addr{}, errors.New("all CIDR ranges are exhausted")
+	return netip.Addr{}, errAllCIDRsExhausted
 }
 
 func (p *cidrPool) release(addr netip.Addr) {
@@ -157,19 +160,19 @@ func (p *cidrPool) inUseCIDRsLocked() []iputil.Prefix {
 	return CIDRs
 }
 
-func (p *cidrPool) dump() (ipToOwner map[string]string, usedIPs, freeIPs, numCIDRs int, err error) {
+func (p *cidrPool) dump() (allocated sets.Set[netip.Addr], usedIPs, freeIPs, numCIDRs int, err error) {
 	// TODO(gandro): Use the Snapshot interface to avoid locking during dump
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	ipToOwner = map[string]string{}
+	allocated = sets.New[netip.Addr]()
 	for _, ipAllocator := range p.ipAllocators {
 		usedIPs += ipAllocator.Used()
 		if _, removed := p.removed[ipAllocator.CIDR()]; !removed {
 			freeIPs += ipAllocator.Free()
 		}
 		ipAllocator.ForEach(func(addr netip.Addr) {
-			ipToOwner[addr.String()] = ""
+			allocated.Insert(addr)
 		})
 	}
 	numCIDRs = len(p.ipAllocators)

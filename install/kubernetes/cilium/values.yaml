@@ -2062,8 +2062,8 @@ hubble:
         # @schema
         override: ~
         repository: "quay.io/cilium/hubble-ui-backend"
-        tag: "v0.13.5"
-        digest: "sha256:fac0c300ae119274edca11fd89b1ad23c788792d8bc4ea2ba631c709e8d3c688"
+        tag: "v0.13.6"
+        digest: "sha256:83b3fc763f3d49948c306bf49b08277383e195904b9ca5c0c0022b2112628787"
         useDigest: true
         pullPolicy: "Always"
       # -- Hubble-ui backend security context.
@@ -2095,8 +2095,8 @@ hubble:
         # @schema
         override: ~
         repository: "quay.io/cilium/hubble-ui"
-        tag: "v0.13.5"
-        digest: "sha256:f7d514fc54d784ed6df9d58cf0e97648b143f92b766dd1780ed3fc845bd4c516"
+        tag: "v0.13.6"
+        digest: "sha256:049a80a03585c043d0c3121bdc518c72b0fd42bae07e4bcce0fdb8f1e88041d0"
         useDigest: true
         pullPolicy: "Always"
       # -- Hubble-ui frontend security context.
@@ -2880,9 +2880,9 @@ envoy:
     # @schema
     override: ~
     repository: "quay.io/cilium/cilium-envoy"
-    tag: "v1.38.4-1788418248-230e609978a4f7e614671e0e7e00a1911b93406c"
+    tag: "v1.38.4-1789133559-b4174f07e1030109459e34436262323af5c3ef0f"
     pullPolicy: "Always"
-    digest: "sha256:1b958363b16328905d93371dd974cc57e8ff277f8e589b31de9ff8e805013b9f"
+    digest: "sha256:6452737a9e3c32dab163e00f9646a251c7c8b3e22d4f11c1ef5d4d5bcc0ea587"
     useDigest: true
   # -- Init containers added to the cilium Envoy DaemonSet.
   initContainers: []
@@ -3642,9 +3642,9 @@ preflight:
       # @schema
       override: ~
       repository: "quay.io/cilium/cilium-envoy"
-      tag: "v1.38.4-1788418248-230e609978a4f7e614671e0e7e00a1911b93406c"
+      tag: "v1.38.4-1789133559-b4174f07e1030109459e34436262323af5c3ef0f"
       pullPolicy: "Always"
-      digest: "sha256:1b958363b16328905d93371dd974cc57e8ff277f8e589b31de9ff8e805013b9f"
+      digest: "sha256:6452737a9e3c32dab163e00f9646a251c7c8b3e22d4f11c1ef5d4d5bcc0ea587"
       useDigest: true
   # -- The priority class to use for the preflight pod.
   priorityClassName: ""

@@ -56,11 +56,11 @@ Listed below are the actively maintained release branches along with their lates
 patch release, corresponding image pull tags and their release notes:
 
 +---------------------------------------------------------+------------+------------------------------------+----------------------------------------------------------------------------+
-| `v1.20 <https://github.com/cilium/cilium/tree/v1.20>`__ | 2026-08-18 | ``quay.io/cilium/cilium:v1.20.1``  | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.20.1>`__  |
+| `v1.20 <https://github.com/cilium/cilium/tree/v1.20>`__ | 2026-09-15 | ``quay.io/cilium/cilium:v1.20.2``  | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.20.2>`__  |
 +---------------------------------------------------------+------------+------------------------------------+----------------------------------------------------------------------------+
-| `v1.19 <https://github.com/cilium/cilium/tree/v1.19>`__ | 2026-08-18 | ``quay.io/cilium/cilium:v1.19.7``  | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.19.7>`__  |
+| `v1.19 <https://github.com/cilium/cilium/tree/v1.19>`__ | 2026-09-15 | ``quay.io/cilium/cilium:v1.19.8``  | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.19.8>`__  |
 +---------------------------------------------------------+------------+------------------------------------+----------------------------------------------------------------------------+
-| `v1.18 <https://github.com/cilium/cilium/tree/v1.18>`__ | 2026-08-18 | ``quay.io/cilium/cilium:v1.18.13`` | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.18.13>`__ |
+| `v1.18 <https://github.com/cilium/cilium/tree/v1.18>`__ | 2026-09-15 | ``quay.io/cilium/cilium:v1.18.14`` | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.18.14>`__ |
 +---------------------------------------------------------+------------+------------------------------------+----------------------------------------------------------------------------+
 
 Architectures
@@ -95,7 +95,7 @@ corresponding image pull tags and their release notes where applicable:
 +----------------------------------------------------------------------------+------------+-----------------------------------------+---------------------------------------------------------------------------------+
 | `main <https://github.com/cilium/cilium/commits/main>`__                   | daily      | ``quay.io/cilium/cilium-ci:latest``     | N/A                                                                             |
 +----------------------------------------------------------------------------+------------+-----------------------------------------+---------------------------------------------------------------------------------+
-| `v1.21.0-pre.0 <https://github.com/cilium/cilium/commits/v1.21.0-pre.0>`__ | 2026-08-03 | ``quay.io/cilium/cilium:v1.21.0-pre.0`` | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.21.0-pre.0>`__ |
+| `v1.21.0-pre.2 <https://github.com/cilium/cilium/commits/v1.21.0-pre.2>`__ | 2026-09-09 | ``quay.io/cilium/cilium:v1.21.0-pre.2`` | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.21.0-pre.2>`__ |
 +----------------------------------------------------------------------------+------------+-----------------------------------------+---------------------------------------------------------------------------------+
 
 Functionality Overview
@@ -266,7 +266,7 @@ The Cilium developer community hangs out on Zoom to chat. Everyone is welcome.
 * Weekly, Wednesday,
   5:00 pm `Europe/Zurich time <https://time.is/Canton_of_Zurich>`__ (CET/CEST),
   usually equivalent to 8:00 am PT, or 11:00 am ET. `Meeting Notes and Zoom Info`_
-* Third Wednesday of each month, 9:00 am `Japan time <https://time.is/Tokyo>`__ (JST). `APAC Meeting Notes and Zoom Info`_
+* Third Wednesday of each month, 1:30 pm `Japan time <https://time.is/Tokyo>`__ (JST). `APAC Meeting Notes and Zoom Info`_
 
 eBPF & Cilium Office Hours livestream
 -------------------------------------

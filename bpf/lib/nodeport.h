@@ -29,6 +29,7 @@
 #include "proxy_hairpin.h"
 #include "fib.h"
 #include "srv6.h"
+#include "vtep.h"
 
 DECLARE_CONFIG(bool, enable_no_service_endpoints_routable,
 	       "Enable routes when service has 0 endpoints")
@@ -664,7 +665,7 @@ static __always_inline int dsr_reply_icmp6(struct __ctx_buff *ctx,
 	ret = snat_v6_rewrite_headers(ctx, tuple.nexthdr, l3_off,
 				      ipfrag_has_l4_header(fraginfo), l4_off,
 				      &tuple.daddr, svc_addr, IPV6_DADDR_OFF,
-				      tuple.sport, dport, TCP_DPORT_OFF);
+				      tuple.sport, dport, TCP_DPORT_OFF, 0);
 	if (IS_ERR(ret))
 		goto drop_err;
 # endif
@@ -1272,12 +1273,12 @@ skip_source_lookup:
 		goto drop_err;
 
 	ret = __snat_v6_nat(ctx, &tuple, state, fraginfo, l4_off, true,
-			    &target, TCP_SPORT_OFF, &trace, &ext_err);
+			    &target, TCP_SPORT_OFF, 0, &trace, &ext_err);
 	if (CONFIG(nodeport_port_max_nat_ext) &&
 	    ret == DROP_NAT_NO_MAPPING) {
 		swap_nat_port_range_ipv6(&target);
 		ret = __snat_v6_nat(ctx, &tuple, state, fraginfo, l4_off, true,
-				    &target, TCP_SPORT_OFF, &trace, &ext_err);
+				    &target, TCP_SPORT_OFF, 0, &trace, &ext_err);
 	}
 	if (IS_ERR(ret))
 		goto drop_err;
@@ -1410,12 +1411,12 @@ static __always_inline int nodeport_svc_lb6(struct __ctx_buff *ctx,
 		if (ret == DROP_NO_SERVICE) {
 			if (!CONFIG(enable_no_service_endpoints_routable))
 				return handle_nonroutable_endpoints_v6(svc);
-#ifdef SERVICE_NO_BACKEND_RESPONSE
-			edt_set_aggregate(ctx, 0);
-			ret = tail_call_internal(ctx, CILIUM_CALL_IPV6_NO_SERVICE,
-						 ext_err);
-			return ret;
-#endif
+			if (CONFIG(enable_service_no_backend_response)) {
+				edt_set_aggregate(ctx, 0);
+				ret = tail_call_internal(ctx, CILIUM_CALL_IPV6_NO_SERVICE,
+							 ext_err);
+				return ret;
+			}
 		}
 
 		return ret;
@@ -2668,13 +2669,13 @@ static __always_inline int nodeport_svc_lb4(struct __ctx_buff *ctx,
 				if (!CONFIG(enable_no_service_endpoints_routable))
 					return handle_nonroutable_endpoints_v4(svc);
 
-#ifdef SERVICE_NO_BACKEND_RESPONSE
-				/* Packet is TX'ed back out, avoid EDT false-positives: */
-				edt_set_aggregate(ctx, 0);
-				ret = tail_call_internal(ctx, CILIUM_CALL_IPV4_NO_SERVICE,
-							 ext_err);
-				return ret;
-#endif
+				if (CONFIG(enable_service_no_backend_response)) {
+					/* Packet is TX'ed back out, avoid EDT false-positives: */
+					edt_set_aggregate(ctx, 0);
+					ret = tail_call_internal(ctx, CILIUM_CALL_IPV4_NO_SERVICE,
+								 ext_err);
+					return ret;
+				}
 			}
 
 			return ret;

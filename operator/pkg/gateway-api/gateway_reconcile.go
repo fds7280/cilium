@@ -70,11 +70,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 			return controllerruntime.Success()
 		}
-		scopedLog.ErrorContext(ctx, "Unable to get GatewayClass",
-			gatewayClass, gw.Spec.GatewayClassName,
-			logfields.Error, err)
-		// Doing nothing till the GatewayClass is available and matching controller name
-		return controllerruntime.Success()
+		return controllerruntime.Fail(fmt.Errorf("failed to get GatewayClass %q: %w", gw.Spec.GatewayClassName, err))
 	}
 
 	if string(gwc.Spec.ControllerName) != r.controllerName {
@@ -88,9 +84,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// At this point, the GatewayClass is managed by Cilium, so Gateway-level validations are safe to run.
-	if ref := gw.Spec.Infrastructure; ref != nil && ref.ParametersRef != nil {
-		setGatewayAccepted(gw, false, "Invalid Gateway parameters: spec.infrastructure.parametersRef is not supported", gatewayv1.GatewayReasonInvalidParameters)
-		setGatewayProgrammed(gw, metav1.ConditionUnknown, "Waiting for Accepted condition to be True", gatewayv1.GatewayReasonPending)
+	if !r.gatewayStatusManager.ValidateGateway(gw) {
 		return r.updateStatusAndSuccess(ctx, original, gw)
 	}
 
@@ -106,10 +100,6 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			setGatewayProgrammed(gw, metav1.ConditionUnknown, "Waiting for Accepted condition to be True", gatewayv1.GatewayReasonPending)
 			return r.updateStatusAndSuccess(ctx, original, gw)
 		}
-	}
-
-	if !r.gatewayAddressStatusManager.ValidateStaticAddresses(gw) {
-		return r.updateStatusAndSuccess(ctx, original, gw)
 	}
 
 	inputs, err := r.inputLoader.Load(ctx, scopedLog, gw, gwc)
@@ -216,11 +206,11 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Step 5: Update the status of the Gateway
-	if err = r.gatewayAddressStatusManager.SetAddressStatus(ctx, gw); err != nil {
+	if err = r.gatewayStatusManager.SetAddressStatus(ctx, gw); err != nil {
 		return r.handleReconcileErrorWithStatus(ctx, fmt.Errorf("failed to set address status: %w", err), original, gw)
 	}
 
-	if err = r.gatewayAddressStatusManager.SetStaticAddressStatus(ctx, gw); err != nil {
+	if err = r.gatewayStatusManager.SetStaticAddressStatus(ctx, gw); err != nil {
 		return r.handleReconcileErrorWithStatus(ctx, fmt.Errorf("failed to set static address status: %w", err), original, gw)
 	}
 
@@ -424,7 +414,7 @@ func (r *gatewayReconciler) ensureOwnedServiceDeleted(ctx context.Context, gw *g
 	svc := &corev1.Service{}
 	key := types.NamespacedName{
 		Namespace: gw.Namespace,
-		Name:      shortener.ShortenK8sResourceName(gatewayApiTranslation.CiliumGatewayPrefix + gw.Name),
+		Name:      shortener.ShortenDNSLabelK8sName(gatewayApiTranslation.CiliumGatewayPrefix + gw.Name),
 	}
 
 	if err := r.client.Get(ctx, key, svc); err != nil {
@@ -440,7 +430,7 @@ func (r *gatewayReconciler) ensureOwnedServiceDeleted(ctx context.Context, gw *g
 func (r *gatewayReconciler) ensureOwnedEndpointSlicesDeleted(ctx context.Context, gw *gatewayv1.Gateway) error {
 	eps := &discoveryv1.EndpointSliceList{}
 	matchingLabels := client.MatchingLabels{
-		gatewayApiTranslation.EndpointSliceServiceNameLabel: shortener.ShortenK8sResourceName(
+		gatewayApiTranslation.EndpointSliceServiceNameLabel: shortener.ShortenDNSLabelK8sName(
 			gatewayApiTranslation.CiliumGatewayPrefix + gw.Name,
 		),
 	}
@@ -465,7 +455,7 @@ func (r *gatewayReconciler) ensureOwnedEnvoyConfigDeleted(ctx context.Context, g
 	cec := &ciliumv2.CiliumEnvoyConfig{}
 	key := types.NamespacedName{
 		Namespace: gw.Namespace,
-		Name:      shortener.ShortenK8sResourceName(gatewayApiTranslation.CiliumGatewayPrefix + gw.Name),
+		Name:      shortener.ShortenDNSLabelK8sName(gatewayApiTranslation.CiliumGatewayPrefix + gw.Name),
 	}
 
 	if err := r.client.Get(ctx, key, cec); err != nil {

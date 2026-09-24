@@ -26,9 +26,8 @@
 #define SYS_REJECT	0
 #define SYS_PROCEED	1
 
-#ifndef HOST_NETNS_COOKIE
-# define HOST_NETNS_COOKIE   get_netns_cookie(NULL)
-#endif
+DECLARE_CONFIG(bool, disable_external_ip_mitigation,
+	       "Disable externalIP mitigation (CVE-2020-8554)")
 
 static __always_inline __maybe_unused bool is_v4_loopback(__be32 daddr)
 {
@@ -84,10 +83,15 @@ static __always_inline __maybe_unused bool
 ctx_in_hostns(void *ctx __maybe_unused, __net_cookie *cookie)
 {
 	__net_cookie own_cookie = get_netns_cookie(ctx);
+	__net_cookie host_cookie = CONFIG(host_netns_cookie);
 
 	if (cookie)
 		*cookie = own_cookie;
-	return own_cookie == HOST_NETNS_COOKIE ||
+
+	if (!host_cookie)
+		host_cookie = get_netns_cookie(NULL);
+
+	return own_cookie == host_cookie ||
 	       task_in_extended_hostns();
 }
 
@@ -197,7 +201,7 @@ sock4_skip_xlate(const struct lb4_service *svc, __be32 address)
 {
 	if (lb4_to_lb6_service(svc))
 		return true;
-	if ((lb4_svc_is_external_ip(svc) && !is_defined(DISABLE_EXTERNAL_IP_MITIGATION)) ||
+	if ((lb4_svc_is_external_ip(svc) && !CONFIG(disable_external_ip_mitigation)) ||
 	    (lb4_svc_is_hostport(svc) && !is_v4_loopback(address))) {
 		const struct remote_endpoint_info *info;
 
@@ -772,7 +776,7 @@ sock6_skip_xlate(const struct lb6_service *svc, const union v6addr *address)
 {
 	if (lb6_to_lb4_service(svc))
 		return true;
-	if ((lb6_svc_is_external_ip(svc) && !is_defined(DISABLE_EXTERNAL_IP_MITIGATION)) ||
+	if ((lb6_svc_is_external_ip(svc) && !CONFIG(disable_external_ip_mitigation)) ||
 	    (lb6_svc_is_hostport(svc) && !is_v6_loopback(address))) {
 		const struct remote_endpoint_info *info;
 

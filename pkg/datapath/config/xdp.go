@@ -6,6 +6,7 @@ package config
 import (
 	"github.com/vishvananda/netlink"
 
+	"github.com/cilium/cilium/pkg/byteorder"
 	"github.com/cilium/cilium/pkg/option"
 )
 
@@ -18,6 +19,11 @@ func XDP(lnc *Config, link netlink.Link) any {
 
 	cfg.EnableExtendedIPProtocols = option.Config.EnableExtendedIPProtocols
 
+	cfg.EnableVTEP = option.Config.EnableVTEP
+	if option.Config.EnableVTEP {
+		cfg.VTEPMask = byteorder.NetIPAddrToHost32(option.Config.VtepCidrMask)
+	}
+
 	cfg.EphemeralMin = lnc.EphemeralMin
 
 	cfg.EnableXDPPrefilter = option.Config.EnableXDPPrefilter
@@ -27,6 +33,7 @@ func XDP(lnc *Config, link netlink.Link) any {
 
 	cfg.EnableIPv4Fragments = option.Config.EnableIPv4FragmentsTracking
 	cfg.EnableIPv6Fragments = option.Config.EnableIPv6FragmentsTracking
+	cfg.EnableServiceNoBackendResponse = option.Config.ServiceNoBackendResponseEnabled()
 
 	lbRSSCfg := lnc.LoadBalancerRSS
 	ipv4Prefix := lbRSSCfg.IPv4Prefix()

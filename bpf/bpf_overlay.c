@@ -304,8 +304,7 @@ static __always_inline int handle_ipv4(struct __ctx_buff *ctx,
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
-#ifdef ENABLE_VTEP
-	{
+	if (CONFIG(enable_vtep)) {
 		struct vtep_key vkey = {
 			.vtep_ip = ip4->saddr & CONFIG(vtep_mask),
 		};
@@ -317,7 +316,6 @@ static __always_inline int handle_ipv4(struct __ctx_buff *ctx,
 				return DROP_INVALID_VNI;
 		}
 	}
-#endif
 
 #if defined(ENABLE_CLUSTER_AWARE_ADDRESSING) && defined(ENABLE_INTER_CLUSTER_SNAT)
 	{
@@ -357,8 +355,8 @@ static __always_inline int handle_ipv4(struct __ctx_buff *ctx,
 		__be32 snat_addr, daddr;
 
 		daddr = ip4->daddr;
-		if (egress_gw_snat_needed_hook(ip4->saddr, daddr, &snat_addr,
-					       &egress_ifindex)) {
+		if (egress_gw_snat_needed_hook(ctx, ip4->saddr, daddr, &snat_addr,
+					       &egress_ifindex, false)) {
 			__u32 tbid = EGRESS_GATEWAY_RT_TBID;
 
 			if (snat_addr == EGRESS_GATEWAY_NO_EGRESS_IP)
@@ -418,7 +416,6 @@ int tail_handle_ipv4(struct __ctx_buff *ctx)
 	return ret;
 }
 
-#ifdef ENABLE_VTEP
 /*
  * ARP responder for ARP requests from VTEP
  * Respond to remote VTEP endpoint with cilium_vxlan MAC
@@ -478,7 +475,6 @@ pass_to_stack:
 			  trace.reason, trace.monitor, bpf_htons(ETH_P_ARP));
 	return CTX_ACT_OK;
 }
-#endif /* ENABLE_VTEP */
 
 #endif /* ENABLE_IPV4 */
 
@@ -579,12 +575,14 @@ int cil_from_overlay(struct __ctx_buff *ctx)
 #endif
 		break;
 
-#ifdef ENABLE_VTEP
 	case bpf_htons(ETH_P_ARP):
-		ret = tail_call_internal(ctx, CILIUM_CALL_ARP, &ext_err);
-		break;
-#endif
-
+		if (CONFIG(enable_vtep)) {
+			ret = tail_call_internal(ctx,
+						 CILIUM_CALL_ARP,
+						 &ext_err);
+			break;
+		}
+		fallthrough;
 	default:
 		/* Pass unknown traffic to the stack */
 		ret = CTX_ACT_OK;

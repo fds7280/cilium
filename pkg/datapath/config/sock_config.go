@@ -10,6 +10,8 @@ package config
 // Warning: do not instantiate directly! Always use [NewBPFSock] to ensure the
 // default values configured in the ELF are honored.
 type BPFSock struct {
+	// Disable externalIP mitigation (CVE-2020-8554).
+	DisableExternalIPMitigation bool `config:"disable_external_ip_mitigation"`
 	// Pass traffic with extended IP protocols.
 	EnableExtendedIPProtocols bool `config:"enable_extended_ip_protocols"`
 	// Enable IPv4 fragments tracking.
@@ -20,16 +22,27 @@ type BPFSock struct {
 	EnableLRP bool `config:"enable_lrp"`
 	// Enable routes when service has 0 endpoints.
 	EnableNoServiceEndpointsRoutable bool `config:"enable_no_service_endpoints_routable"`
+	// Reply with ICMP to traffic to a service with no backends.
+	EnableServiceNoBackendResponse bool `config:"enable_service_no_backend_response"`
+	// Enable socket-based service load-balancing tracing.
+	EnableSocketLBTracing bool `config:"enable_socket_lb_tracing"`
+	// Enable VTEP integration.
+	EnableVTEP bool `config:"enable_vtep"`
+	// Cookie identifying the network namespace treated as the host namespace.
+	HostNetNSCookie uint64 `config:"host_netns_cookie"`
 	// Cgroup class ID identifying MKE containers treated as host-networked.
 	MKEHost uint32 `config:"mke_host"`
 	// Port number used for the overlay network.
 	TunnelPort uint16 `config:"tunnel_port"`
 	// The identifier of the tunnel protocol used for the overlay network.
 	TunnelProtocol uint8 `config:"tunnel_protocol"`
+	// VXLAN tunnel endpoint network mask.
+	VTEPMask uint32 `config:"vtep_mask"`
 
 	Node
 }
 
 func NewBPFSock(node Node) *BPFSock {
-	return &BPFSock{false, false, false, false, false, 0x0, 0x0, 0x0, node}
+	return &BPFSock{false, false, false, false, false, false, false, false, false,
+		0x0, 0x0, 0x0, 0x0, 0x0, node}
 }
