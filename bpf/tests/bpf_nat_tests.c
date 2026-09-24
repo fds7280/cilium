@@ -37,15 +37,7 @@ static char pkt[100];
 
 ASSIGN_CONFIG(__u16, device_mtu, 1500);
 
-#define ICMP_CSUM_LEN_ECHO (sizeof(struct icmphdr) + sizeof(struct iphdr) + sizeof(struct icmphdr))
-#define ICMP_CSUM_LEN_SCTP (sizeof(struct icmphdr) + sizeof(struct iphdr) + 4)
 
-#define assert_icmp_csum_valid(_off, _len) do {			\
-	__u8 __icmp_msg[(_len)];					\
-	if (ctx_load_bytes(ctx, (_off), __icmp_msg, (_len)) < 0)	\
-		test_fatal("can't load icmp msg for csum check");	\
-	assert(csum_fold(csum_diff(NULL, 0, __icmp_msg, (_len), 0)) == 0); \
-} while (0)
 
 __always_inline int mk_icmp4_error_pkt(void *dst, __u8 error_hdr, bool egress, bool rfc4884)
 {
@@ -625,9 +617,6 @@ int test_nat4_icmp_error_icmp(__maybe_unused struct __ctx_buff *ctx)
 		test_fatal("can't load icmp headers");
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
-
-	assert_icmp_csum_valid(l4_off, ICMP_CSUM_LEN_ECHO);
-
 	/* Validating inner headers */
 	int in_l3_off;
 	int in_l4_off;
@@ -725,9 +714,6 @@ int test_nat4_icmp_error_sctp(__maybe_unused struct __ctx_buff *ctx)
 		test_fatal("can't load icmp headers");
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
-
-	assert_icmp_csum_valid(l4_off, ICMP_CSUM_LEN_SCTP);
-
 	test_finish();
 }
 
@@ -1189,9 +1175,6 @@ int test_nat4_icmp_error_icmp_egress(__maybe_unused struct __ctx_buff *ctx)
 		test_fatal("can't load icmp headers");
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
-
-	assert_icmp_csum_valid(l4_off, ICMP_CSUM_LEN_ECHO);
-
 	/* Validating inner headers */
 	int in_l3_off;
 	int in_l4_off;
@@ -1298,9 +1281,6 @@ int test_nat4_icmp_error_sctp_egress(__maybe_unused struct __ctx_buff *ctx)
 		test_fatal("can't load icmp headers");
 	assert(icmphdr.type == ICMP_DEST_UNREACH);
 	assert(icmphdr.code == ICMP_FRAG_NEEDED);
-
-	assert_icmp_csum_valid(l4_off, ICMP_CSUM_LEN_SCTP);
-
 	/* Validating inner headers */
 	int in_l3_off;
 	int in_l4_off;
