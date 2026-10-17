@@ -4,6 +4,7 @@
 #include <bpf/ctx/xdp.h>
 #include "common.h"
 #include "pktgen.h"
+#include "scapy.h"
 #include <bpf/config/node.h>
 
 #include "lib/common.h"
@@ -164,6 +165,72 @@ int ipv6_with_hop_auth_tcp_check(struct __ctx_buff *ctx)
 		test_fatal("l2 out of bounds");
 
 	assert(l2->h_proto == __bpf_htons(ETH_P_IPV6));
+
+	l3 = (void *)l2 + ETH_HLEN;
+	if ((void *)(l3 + 1) > data_end)
+		test_fatal("l3 out of bounds");
+
+	nexthdr = l3->nexthdr;
+	assert(ipv6_hdrlen(ctx, &nexthdr) > 0);
+	assert(nexthdr == IPPROTO_TCP);
+
+	test_finish();
+}
+
+const __u8 ipv6_test_ext4_tcp_syn[] = {
+	SCAPY_BUF_BYTES(ipv6_test_ext4_tcp_syn)
+};
+
+PKTGEN(PROG_TYPE, "ipv6_with_four_dest_tcp")
+int ipv6_with_four_dest_tcp_pktgen(struct __ctx_buff *ctx)
+{
+	struct pktgen builder;
+
+	pktgen__init(&builder, ctx);
+
+	if (!scapy_push_data(&builder, ipv6_test_ext4_tcp_syn,
+			     sizeof(ipv6_test_ext4_tcp_syn)))
+		return TEST_ERROR;
+
+	pktgen__finish(&builder);
+
+	return 0;
+}
+
+SETUP(PROG_TYPE, "ipv6_with_four_dest_tcp")
+int ipv6_with_four_dest_tcp_setup(__maybe_unused struct __ctx_buff *ctx)
+{
+	return 4444;
+}
+
+CHECK(PROG_TYPE, "ipv6_with_four_dest_tcp")
+int ipv6_with_four_dest_tcp_check(struct __ctx_buff *ctx)
+{
+	void *data, *data_end;
+	struct ethhdr *l2;
+	struct ipv6hdr *l3;
+	__u32 *status_code;
+	__u8 nexthdr;
+
+	test_init();
+
+	data = ctx_data(ctx);
+	data_end = ctx_data_end(ctx);
+
+	if (data + sizeof(__u32) > data_end)
+		test_fatal("status code out of bounds");
+
+	status_code = data;
+	assert(*status_code == 4444);
+
+	xdp_adjust_head(ctx, 4);
+
+	data = ctx_data(ctx);
+	data_end = ctx_data_end(ctx);
+
+	l2 = data;
+	if ((void *)(l2 + 1) > data_end)
+		test_fatal("l2 out of bounds");
 
 	l3 = (void *)l2 + ETH_HLEN;
 	if ((void *)(l3 + 1) > data_end)
